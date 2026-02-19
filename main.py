@@ -28,12 +28,13 @@ if not BOT_TOKEN:
 async def check_permission(update: Update):
     user_id = update.effective_user.id
 
-    # MASTER ใช้งานได้ตลอด
+    # MASTER 永久有效
     if str(user_id) == str(MASTER_ADMIN):
         return True
 
     conn = get_db_connection()
     if not conn:
+        await update.message.reply_text("❌ 数据库连接失败")
         return False
 
     cursor = conn.cursor()
@@ -45,22 +46,27 @@ async def check_permission(update: Update):
     if row and row[0] and row[0] > datetime.utcnow():
         return True
 
-    await update.message.reply_text("❌ สิทธิ์หมดอายุ กรุณาติดต่อแอดมิน")
+    await update.message.reply_text(
+        "❌ 使用权限已过期\n"
+        "请联系管理员 `@Mbcdcandy` 开通权限"
+    )
     return False
-
 
 # ---------------- CHECK STATUS ----------------
 async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
+    # MASTER 永久权限
     if str(user_id) == str(MASTER_ADMIN):
         await update.message.reply_text(
-            f"🆔 ID: {user_id}\n👑 สถานะ: MASTER (ไม่จำกัดเวลา)"
+            f"🆔 用户ID: {user_id}\n"
+            f"👑 权限状态: MASTER（永久有效）"
         )
         return
 
     conn = get_db_connection()
     if not conn:
+        await update.message.reply_text("❌ 数据库连接错误")
         return
 
     cursor = conn.cursor()
@@ -71,17 +77,26 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if row and row[0]:
         remaining = row[0] - datetime.utcnow()
+
         if remaining.total_seconds() > 0:
+            days = remaining.days
+            hours = remaining.seconds // 3600
+            minutes = (remaining.seconds % 3600) // 60
+
             await update.message.reply_text(
-                f"🆔 ID: {user_id}\n"
-                f"⏳ เหลือเวลา: {remaining.days} วัน "
-                f"{remaining.seconds//3600} ชั่วโมง"
+                f"🆔 用户ID: {user_id}\n"
+                f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟"
             )
         else:
-            await update.message.reply_text("❌ สิทธิ์หมดอายุแล้ว")
+            await update.message.reply_text(
+                f"🆔 用户ID: {user_id}\n"
+                f"❌ 权限已过期"
+            )
     else:
-        await update.message.reply_text("❌ ยังไม่ได้เปิดใช้งาน")
-
+        await update.message.reply_text(
+            f"🆔 用户ID: {user_id}\n"
+            f"⚠️ 尚未开通使用权限"
+        )
 
 # ---------------- ADD DAYS (MASTER ONLY) ----------------
 async def add_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,7 +139,7 @@ async def add_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     await update.message.reply_text(
-        f"✅ เพิ่ม {days} วัน ให้ {target_id}\nหมดอายุ: {new_expire}"
+        f"✅ 增加 {days} 天 给 {target_id}\n使用到期: {new_expire}"
     )
 
 
@@ -144,7 +159,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📊 *常用指令*\n\n"
 
         "💰 `/balance`\n"
-        "查看当前余额\n\n"
+        "查看全部记录\n\n"
 
         "📄 `/list`\n"
         "查看最近 10 条记录\n\n"
@@ -328,7 +343,7 @@ async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     if not rows:
-        await update.message.reply_text("ยังไม่มีรายการ")
+        await update.message.reply_text("没有记录")
         return
 
     text = "📄 10 รายการล่าสุด\n\n"
@@ -367,7 +382,7 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.close()
     conn.close()
 
-    await update.message.reply_text("↩️ ลบรายการล่าสุดแล้ว")
+    await update.message.reply_text("↩️ 撤销最后一条记录")
 
 # ---------------- reset ----------------
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -385,7 +400,7 @@ async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.close()
     conn.close()
 
-    await update.message.reply_text("🗑️ ลบข้อมูลทั้งหมดแล้ว")
+    await update.message.reply_text("🗑️ 清空当前群组所有记录")
 
 # ---------------- MAIN ----------------
 if __name__ == '__main__':

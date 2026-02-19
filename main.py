@@ -195,7 +195,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     sign = match.group(1)
     amount = int(match.group(2))
-    description = match.group(3) if match.group(3) else "ไม่ระบุรายการ"
+    description = match.group(3) if match.group(3) else "未备注"
 
     if sign == '-':
         amount = -amount
@@ -208,6 +208,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cursor = conn.cursor()
 
+    # 取最后余额
     cursor.execute("""
         SELECT balance_after FROM history
         WHERE chat_id = %s
@@ -218,24 +219,47 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_balance = last[0] if last else 0
     new_balance = last_balance + amount
 
+    # 插入新记录
     cursor.execute("""
         INSERT INTO history (chat_id, amount, description, balance_after, user_name)
         VALUES (%s, %s, %s, %s, %s)
     """, (chat_id, amount, description, new_balance, update.message.from_user.first_name))
 
     conn.commit()
+
+    # 取最近记录（最多6条）
+    cursor.execute("""
+        SELECT description, amount, balance_after, timestamp
+        FROM history
+        WHERE chat_id = %s
+        ORDER BY id DESC LIMIT 6
+    """, (chat_id,))
+
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    rows.reverse()  # 时间顺序
 
-    await update.message.reply_text(
-        f"📅 {now}\n"
-        f"📌 {description}\n"
-        f"{'💵 +' if amount > 0 else '💸 '}{amount}\n"
-        f"💰 คงเหลือ: {new_balance}"
-    )
+    display_rows = rows[-5:] if len(rows) > 5 else rows
 
+    text_reply = "📋 最近记录:\n\n"
+
+    if len(rows) > 5:
+        text_reply += "...\n"
+
+    for r in display_rows:
+        text_reply += (
+            f"{r[3].strftime('%m-%d %H:%M')} | "
+            f"{'+' if r[1]>0 else ''}{r[1]} | "
+            f"余额 {r[2]}\n"
+            f"📌 {r[0]}\n\n"
+        )
+
+    text_reply += "━━━━━━━━━━━━━━━\n"
+    text_reply += f"💰 当前余额: {new_balance}"
+
+    await update.message.reply_text(text_reply)
 
 # ---------------- BALANCE ----------------
 async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -249,18 +273,37 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     cursor = conn.cursor()
+
     cursor.execute("""
-        SELECT balance_after FROM history
+        SELECT description, amount, balance_after, timestamp
+        FROM history
         WHERE chat_id = %s
-        ORDER BY id DESC LIMIT 1
+        ORDER BY id ASC
     """, (chat_id,))
-    row = cursor.fetchone()
+
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    balance = row[0] if row else 0
+    if not rows:
+        await update.message.reply_text("📭 暂无记录")
+        return
 
-    await update.message.reply_text(f"💰 ยอดคงเหลือปัจจุบัน: {balance}")
+    text = "📒 全部账目记录\n\n"
+
+    for r in rows:
+        text += (
+            f"{r[3].strftime('%m-%d %H:%M')} | "
+            f"{'+' if r[1]>0 else ''}{r[1]} | "
+            f"余额 {r[2]}\n"
+            f"📌 {r[0]}\n\n"
+        )
+
+    text += "━━━━━━━━━━━━━━━\n"
+    text += f"💰 当前余额: {rows[-1][2]}"
+
+    await update.message.reply_text(text)
+
 
 # ---------------- list ----------------
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -84,17 +84,17 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             minutes = (remaining.seconds % 3600) // 60
 
             await update.message.reply_text(
-                f"🆔 用户ID: {user_id}\n"
+                f"🆔 用户ID: `{user_id}`\n"
                 f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟"
             )
         else:
             await update.message.reply_text(
-                f"🆔 用户ID: {user_id}\n"
+                f"🆔 用户ID: `{user_id}`\n"
                 f"❌ 权限已过期"
             )
     else:
         await update.message.reply_text(
-            f"🆔 用户ID: {user_id}\n"
+            f"🆔 用户ID: `{user_id}`\n"
             f"⚠️ 尚未开通使用权限"
         )
 

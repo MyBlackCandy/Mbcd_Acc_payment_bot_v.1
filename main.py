@@ -59,7 +59,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # MASTER 永久权限
     if str(user_id) == str(MASTER_ADMIN):
         await update.message.reply_text(
-            f"🆔 用户ID: {user_id}\n"
+            f"🆔 用户ID:`{user_id}`\n"
             f"👑 权限状态: MASTER（永久有效）"
         )
         return

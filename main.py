@@ -369,6 +369,8 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     cursor = conn.cursor()
+
+    # ลบรายการล่าสุด
     cursor.execute("""
         DELETE FROM history
         WHERE id = (
@@ -377,12 +379,47 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ORDER BY id DESC LIMIT 1
         )
     """, (chat_id,))
-
     conn.commit()
+
+    # ดึงรายการล่าสุดหลังลบ (สูงสุด 6 รายการ)
+    cursor.execute("""
+        SELECT description, amount, balance_after, timestamp
+        FROM history
+        WHERE chat_id = %s
+        ORDER BY id DESC LIMIT 6
+    """, (chat_id,))
+
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    await update.message.reply_text("↩️ 撤销最后一条记录")
+    if not rows:
+        await update.message.reply_text("🗑️ 已撤销，当前暂无记录")
+        return
+
+    rows.reverse()  # เรียงตามเวลาเก่า → ใหม่
+
+    display_rows = rows[-5:] if len(rows) > 5 else rows
+
+    text_reply = "↩️ 已撤销最后一条记录\n\n"
+    text_reply += "📋 当前记录:\n\n"
+
+    if len(rows) > 5:
+        text_reply += "...\n"
+
+    for r in display_rows:
+        text_reply += (
+            f"{r[3].strftime('%m-%d %H:%M')} | "
+            f"{'+' if r[1] > 0 else ''}{r[1]} | "
+            f"余额 {r[2]}\n"
+            f"📌 {r[0]}\n\n"
+        )
+
+    text_reply += "━━━━━━━━━━━━━━━\n"
+    text_reply += f"💰 当前余额: {rows[-1][2]}"
+
+    await update.message.reply_text(text_reply)
+
 
 # ---------------- reset ----------------
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -395,12 +432,54 @@ async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     cursor = conn.cursor()
+
+    # ลบข้อมูลทั้งหมดของกลุ่ม
     cursor.execute("DELETE FROM history WHERE chat_id = %s", (chat_id,))
     conn.commit()
+
+    # ตรวจสอบว่ามีข้อมูลเหลือไหม
+    cursor.execute("""
+        SELECT description, amount, balance_after, timestamp
+        FROM history
+        WHERE chat_id = %s
+        ORDER BY id DESC LIMIT 6
+    """, (chat_id,))
+
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    await update.message.reply_text("🗑️ 清空当前群组所有记录")
+    if not rows:
+        await update.message.reply_text(
+            "🗑️ 已清空所有记录\n\n"
+            "📭 当前暂无任何账目记录\n"
+            "💰 当前余额: 0"
+        )
+        return
+
+    # เผื่อในอนาคตมีเงื่อนไขพิเศษ
+    rows.reverse()
+    display_rows = rows[-5:] if len(rows) > 5 else rows
+
+    text_reply = "🗑️ 已清空记录\n\n"
+    text_reply += "📋 当前记录:\n\n"
+
+    if len(rows) > 5:
+        text_reply += "...\n"
+
+    for r in display_rows:
+        text_reply += (
+            f"{r[3].strftime('%m-%d %H:%M')} | "
+            f"{'+' if r[1] > 0 else ''}{r[1]} | "
+            f"余额 {r[2]}\n"
+            f"📌 {r[0]}\n\n"
+        )
+
+    text_reply += "━━━━━━━━━━━━━━━\n"
+    text_reply += f"💰 当前余额: {rows[-1][2]}"
+
+    await update.message.reply_text(text_reply)
+
 
 # ---------------- MAIN ----------------
 if __name__ == '__main__':

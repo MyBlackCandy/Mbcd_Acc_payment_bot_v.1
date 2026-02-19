@@ -29,7 +29,7 @@ def init_db():
     try:
         cursor = conn.cursor()
 
-        # ตารางเก็บสิทธิ์ผู้ใช้
+        # ตารางสิทธิ์ผู้ใช้
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,

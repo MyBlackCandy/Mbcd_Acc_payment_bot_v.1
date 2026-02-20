@@ -412,8 +412,9 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_reply += (
             f"{r[3].strftime('%m-%d %H:%M')} | "
             f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
-            f"余额 {r[2]:,} | "
-            f"{r[0]}\n"
+            f"{r[0]} | \n"
+            f"余额 {r[2]:,}  "
+            
         )
 
     text_reply += "\n━━━━━━━━━━━━━━━\n"
@@ -465,8 +466,9 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         line = (
             f"{r[3].strftime('%m-%d %H:%M')} | "
             f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
+            f"{r[0]} | \n"
             f"余额 {r[2]:,} | "
-            f"{r[0]}\n"
+            
         )
 
         # ถ้าใกล้ 4096 ตัวอักษร ให้ส่งก่อน
@@ -798,8 +800,9 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_reply += (
             f"{r[3].strftime('%m-%d %H:%M')} | "
             f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
-            f"余额 {r[2]:,} | "
-            f"{r[0]}\n"
+            f"{r[0]} | \n"
+            f"余额 {r[2]:,}"
+            
         )
 
     text_reply += "\n━━━━━━━━━━━━━━━\n"

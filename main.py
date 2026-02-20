@@ -467,7 +467,7 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{r[3].strftime('%m-%d %H:%M')} | "
             f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
             f"{r[0]} | \n"
-            f"余额 {r[2]:,} | "
+            f"余额 {r[2]:,}"
             
         )
 

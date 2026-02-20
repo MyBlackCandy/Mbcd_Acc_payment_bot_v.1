@@ -33,8 +33,10 @@ def get_db_connection():
 
 
 # ================= INIT DATABASE =================
-    def init_db():
+def init_db():
+
     conn = get_db_connection()
+
     if conn is None:
         logging.error("❌ Cannot initialize DB")
         return
@@ -74,7 +76,7 @@ def get_db_connection():
             )
         """)
 
-        # ===== Index =====
+        # ===== INDEX =====
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_history_chat_id
             ON history(chat_id)
@@ -91,6 +93,7 @@ def get_db_connection():
         """)
 
         conn.commit()
+
         cursor.close()
         conn.close()
 
@@ -98,3 +101,5 @@ def get_db_connection():
 
     except Exception as e:
         logging.error(f"❌ Database Init Error: {e}")
+        conn.rollback()
+        conn.close()

@@ -183,7 +183,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await update.message.reply_text(
                 f"🆔 用户ID: `{user_id}`\n"
-                f"👑 身份: 授权者\n"
+                f"👑 身份: Owner\n"
                 f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟"
             )
             return
@@ -198,7 +198,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if assistant_row:
         await update.message.reply_text(
             f"🆔 用户ID: `{user_id}`\n"
-            f"👥 身份:  群操控者\n"
+            f"👥 身份:  此群操控者\n"
             f"📌 仅限当前群组使用,请联系管理员 @Mbcdcandy"
         )
         return
@@ -293,7 +293,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "系统会自动计算余额\n\n"
 
         "━━━━━━━━━━━━━━━━━━\n"
-        "📊 账务指令\n\n"
+        "📊 指令\n\n"
 
         "💰 /balance\n"
         "查看最近 100 条记录\n\n"
@@ -307,30 +307,24 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🗑️ /reset\n"
         "清空当前群组所有记录（仅 Owner）\n\n"
 
-        "━━━━━━━━━━━━━━━━━━\n"
-        "👥 团队权限\n\n"
-
-        "👑 Owner\n"
-        "拥有完整权限（需有使用期限）\n\n"
-
-        "👥 Assistant\n"
-        "仅限当前群组使用\n"
-        "可记账 /undo /balance /summary\n\n"
-
-        "➕ /addassistant\n"
-        "回复某人添加为助手（仅 Owner）\n\n"
-
-        "➖ /removeassistant\n"
-        "回复某人移除助手（仅 Owner）\n\n"
-
-        "━━━━━━━━━━━━━━━━━━\n"
-        "🔐 权限管理\n\n"
-
         "🆔 /check\n"
         "查看当前账号身份与权限状态\n\n"
 
+        "━━━━━━━━━━━━━━━━━━\n"
+        "👑 仅限 Owner 使用\n"
+        "拥有完整权限（需有使用期限）\n\n"
+
+        "➕ 增加操作者用 /addassistant\n"
+        "回复需要添加为助手，（必须用回复的方式）\n\n"
+
+        "➖ 移除操作者用 /removeassistant\n"
+        "回复需要移除助手，（必须用回复的方式）\n\n"
+
+        "━━━━━━━━━━━━━━━━━━\n"
+        
         "👑 仅限 MASTER 使用\n"
         "/adddays 用户ID 天数\n"
+        "备注：（可用/chack 来查看用户ID）\n"
         "例如：\n"
         "/adddays 123456789 30\n"
         "增加 30 天使用期限\n\n"

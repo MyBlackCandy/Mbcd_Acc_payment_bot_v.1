@@ -320,6 +320,90 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 
+# ---------------- summary ----------------
+async def summary_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await check_permission(update):
+        return
+
+    chat_id = update.effective_chat.id
+    conn = get_db_connection()
+    if not conn:
+        return
+
+    cursor = conn.cursor()
+
+    # ================= 总体统计 =================
+    cursor.execute("""
+        SELECT 
+            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0) as income,
+            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0) as expense
+        FROM history
+        WHERE chat_id = %s
+    """, (chat_id,))
+    total_income, total_expense = cursor.fetchone()
+    total_net = total_income + total_expense
+
+    # ================= 日统计 =================
+    cursor.execute("""
+        SELECT 
+            DATE(timestamp) as day,
+            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0) as income,
+            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0) as expense
+        FROM history
+        WHERE chat_id = %s
+        GROUP BY DATE(timestamp)
+        ORDER BY day DESC
+    """, (chat_id,))
+    daily_rows = cursor.fetchall()
+
+    # ================= 月统计 =================
+    cursor.execute("""
+        SELECT 
+            TO_CHAR(timestamp, 'YYYY-MM') as month,
+            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0) as income,
+            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0) as expense
+        FROM history
+        WHERE chat_id = %s
+        GROUP BY TO_CHAR(timestamp, 'YYYY-MM')
+        ORDER BY month DESC
+    """, (chat_id,))
+    monthly_rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    if not daily_rows:
+        await update.message.reply_text("📭 暂无账务记录")
+        return
+
+    text = "📊 财务统计中心\n"
+    text += "━━━━━━━━━━━━━━━\n\n"
+
+    # ===== 总体 =====
+    text += "📌 总体汇总\n"
+    text += f"总收入: {total_income}\n"
+    text += f"总支出: {total_expense}\n"
+    text += f"总净额: {total_net}\n\n"
+
+    # ===== 每日 =====
+    text += "📅 每日汇总\n"
+    for r in daily_rows:
+        day, income, expense = r
+        net = income + expense
+        text += (
+            f"{day} | 收入 {income} | 支出 {expense} | 净额 {net}\n"
+        )
+
+    text += "\n📆 每月汇总\n"
+    for r in monthly_rows:
+        month, income, expense = r
+        net = income + expense
+        text += (
+            f"{month} | 收入 {income} | 支出 {expense} | 净额 {net}\n"
+        )
+
+    await update.message.reply_text(text)
+    
 # ---------------- list ----------------
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_permission(update):
@@ -494,6 +578,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("check", check_status))
     app.add_handler(CommandHandler("adddays", add_days))
     app.add_handler(CommandHandler("balance", balance_cmd))
+    app.add_handler(CommandHandler("summary", summary_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
 
     logging.info("🚀 Expense Bot Running...")

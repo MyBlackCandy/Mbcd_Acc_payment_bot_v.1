@@ -182,14 +182,14 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             minutes = (remaining.seconds % 3600) // 60
 
             await update.message.reply_text(
-                f"🆔 用户ID: `{user_id}`\n"
+                f"🆔 用户ID: <code>{user_id}</code>\n"
                 f"👑 身份: Owner\n"
                 f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟"
             )
             return
         else:
             await update.message.reply_text(
-                f"🆔 用户ID: `{user_id}`\n"
+                f"🆔 用户ID: <code>{user_id}</code>\n"
                 f"❌ 使用权限已过期,请联系管理员 @Mbcdcandy"
             )
             return
@@ -197,7 +197,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ===== Assistant =====
     if assistant_row:
         await update.message.reply_text(
-            f"🆔 用户ID: `{user_id}`\n"
+            f"🆔 用户ID: <code>{user_id}</code>\n"
             f"👥 身份:  此群操控者\n"
             f"📌 仅限当前群组使用,请联系管理员 @Mbcdcandy"
         )
@@ -205,7 +205,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== 无权限 =====
     await update.message.reply_text(
-        f"🆔 用户ID: `{user_id}`\n"
+        f"🆔 用户ID: <code>{user_id}</code>\n"
         f"❌ 当前群组无使用权限,请联系管理员 @Mbcdcandy"
     )
 

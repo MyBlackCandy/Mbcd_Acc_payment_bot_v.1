@@ -499,7 +499,8 @@ async def summary_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ---------------- summary callblack ----------------
+
+# ---------------- summary callback ----------------
 async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
@@ -521,11 +522,15 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             FROM history
             WHERE chat_id = %s
         """, (chat_id,))
-        total_income, total_expense = cursor.fetchone()
-        total_net = total_income + total_expense
+        income, expense = cursor.fetchone()
+        expense_abs = abs(expense)
+        net = income + expense
 
+        # 按日
         cursor.execute("""
-            SELECT DATE(timestamp), SUM(amount)
+            SELECT DATE(timestamp),
+                   COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                   COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id = %s
             GROUP BY DATE(timestamp)
@@ -533,8 +538,11 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """, (chat_id,))
         daily = cursor.fetchall()
 
+        # 按月
         cursor.execute("""
-            SELECT TO_CHAR(timestamp,'YYYY-MM'), SUM(amount)
+            SELECT TO_CHAR(timestamp,'YYYY-MM'),
+                   COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                   COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id = %s
             GROUP BY TO_CHAR(timestamp,'YYYY-MM')
@@ -542,8 +550,11 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """, (chat_id,))
         monthly = cursor.fetchall()
 
+        # 按年
         cursor.execute("""
-            SELECT TO_CHAR(timestamp,'YYYY'), SUM(amount)
+            SELECT TO_CHAR(timestamp,'YYYY'),
+                   COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                   COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id = %s
             GROUP BY TO_CHAR(timestamp,'YYYY')
@@ -552,21 +563,21 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         yearly = cursor.fetchall()
 
         text = "📊 全部统计\n━━━━━━━━━━━━━━━\n\n"
-        text += f"总收入: {total_income:,}\n"
-        text += f"总支出: {total_expense:,}\n"
-        text += f"总净额: {total_net:,}\n\n"
+        text += f"收入: {income:,}\n"
+        text += f"支出: {expense_abs:,}\n"
+        text += f"净额: {net:,}\n\n"
 
         text += "📅 按日统计\n"
-        for d, total in daily:
-            text += f"{d} | {total:,}\n"
+        for d, inc, exp in daily:
+            text += f"{d} | 收入 {inc:,} | 支出 {abs(exp):,} | 净额 {(inc+exp):,}\n"
 
         text += "\n📆 按月统计\n"
-        for m, total in monthly:
-            text += f"{m} | {total:,}\n"
+        for m, inc, exp in monthly:
+            text += f"{m} | 收入 {inc:,} | 支出 {abs(exp):,} | 净额 {(inc+exp):,}\n"
 
         text += "\n📈 按年统计\n"
-        for y, total in yearly:
-            text += f"{y} | {total:,}\n"
+        for y, inc, exp in yearly:
+            text += f"{y} | 收入 {inc:,} | 支出 {abs(exp):,} | 净额 {(inc+exp):,}\n"
 
         await query.edit_message_text(text)
 
@@ -602,15 +613,21 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         month = action.split(":")[1]
 
         cursor.execute("""
-            SELECT SUM(amount)
+            SELECT 
+                COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id=%s
             AND TO_CHAR(timestamp,'YYYY-MM')=%s
         """, (chat_id, month))
-        total = cursor.fetchone()[0] or 0
+        income, expense = cursor.fetchone()
+        expense_abs = abs(expense)
+        net = income + expense
 
         cursor.execute("""
-            SELECT DATE(timestamp), SUM(amount)
+            SELECT DATE(timestamp),
+                   COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                   COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id=%s
             AND TO_CHAR(timestamp,'YYYY-MM')=%s
@@ -619,12 +636,13 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """, (chat_id, month))
         daily = cursor.fetchall()
 
-        text = f"📅 {month} 月统计\n"
-        text += "━━━━━━━━━━━━━━━\n\n"
-        text += f"总计: {total:,}\n\n"
+        text = f"📅 {month} 月统计\n━━━━━━━━━━━━━━━\n\n"
+        text += f"收入: {income:,}\n"
+        text += f"支出: {expense_abs:,}\n"
+        text += f"净额: {net:,}\n\n"
 
-        for d, t in daily:
-            text += f"{d} | {t:,}\n"
+        for d, inc, exp in daily:
+            text += f"{d} | 收入 {inc:,} | 支出 {abs(exp):,} | 净额 {(inc+exp):,}\n"
 
         await query.edit_message_text(text)
 
@@ -659,15 +677,21 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         year = action.split(":")[1]
 
         cursor.execute("""
-            SELECT SUM(amount)
+            SELECT 
+                COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id=%s
             AND TO_CHAR(timestamp,'YYYY')=%s
         """, (chat_id, year))
-        total = cursor.fetchone()[0] or 0
+        income, expense = cursor.fetchone()
+        expense_abs = abs(expense)
+        net = income + expense
 
         cursor.execute("""
-            SELECT TO_CHAR(timestamp,'YYYY-MM'), SUM(amount)
+            SELECT TO_CHAR(timestamp,'YYYY-MM'),
+                   COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                   COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
             FROM history
             WHERE chat_id=%s
             AND TO_CHAR(timestamp,'YYYY')=%s
@@ -676,12 +700,13 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """, (chat_id, year))
         monthly = cursor.fetchall()
 
-        text = f"📆 {year} 年统计\n"
-        text += "━━━━━━━━━━━━━━━\n\n"
-        text += f"总计: {total:,}\n\n"
+        text = f"📆 {year} 年统计\n━━━━━━━━━━━━━━━\n\n"
+        text += f"收入: {income:,}\n"
+        text += f"支出: {expense_abs:,}\n"
+        text += f"净额: {net:,}\n\n"
 
-        for m, t in monthly:
-            text += f"{m} | {t:,}\n"
+        for m, inc, exp in monthly:
+            text += f"{m} | 收入 {inc:,} | 支出 {abs(exp):,} | 净额 {(inc+exp):,}\n"
 
         await query.edit_message_text(text)
 

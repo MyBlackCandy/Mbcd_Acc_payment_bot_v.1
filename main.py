@@ -908,7 +908,97 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
             )
     except:
         pass
+# ---------------- daily_report ----------------
+async def daily_report(context: ContextTypes.DEFAULT_TYPE):
 
+    chat_id = context.job.chat_id
+
+    conn = get_db_connection()
+    if not conn:
+        return
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT 
+            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
+        FROM history
+        WHERE chat_id = %s
+        AND DATE(timestamp) = CURRENT_DATE
+    """, (chat_id,))
+
+    income, expense = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if income == 0 and expense == 0:
+        text = "📅 今日统计\n━━━━━━━━━━━━━━━\n\n今天没有记录"
+    else:
+        net = income + expense
+        text = (
+            "📅 今日统计\n"
+            "━━━━━━━━━━━━━━━\n\n"
+            f"收入: {income:,}\n"
+            f"支出: {abs(expense):,}\n"
+            f"净额: {net:,}"
+        )
+
+    await context.bot.send_message(chat_id=chat_id, text=text)
+
+# ---------------- set_daily_report ----------------
+async def set_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    role = await check_permission(update)
+    if not role:
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("用法: /setreport HH:MM\n例如: /setreport 21:00")
+        return
+
+    try:
+        hour, minute = map(int, context.args[0].split(":"))
+    except:
+        await update.message.reply_text("时间格式错误")
+        return
+
+    chat_id = update.effective_chat.id
+
+    # ลบ job เดิมถ้ามี
+    current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
+    for job in current_jobs:
+        job.schedule_removal()
+
+    context.job_queue.run_daily(
+        daily_report,
+        time=datetime.strptime(context.args[0], "%H:%M").time(),
+        chat_id=chat_id,
+        name=str(chat_id)
+    )
+
+    await update.message.reply_text(
+        f"✅ 每日自动报告已设置为 {context.args[0]}"
+    )
+
+# ---------------- stop_daily_report ----------------
+async def stop_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    role = await check_permission(update)
+    if not role:
+        return
+
+    chat_id = update.effective_chat.id
+
+    jobs = context.job_queue.get_jobs_by_name(str(chat_id))
+    if not jobs:
+        await update.message.reply_text("❌ 当前未设置自动报告")
+        return
+
+    for job in jobs:
+        job.schedule_removal()
+
+    await update.message.reply_text("✅ 已关闭每日自动报告")
 
 # ---------------- MAIN ----------------
 if __name__ == '__main__':
@@ -923,6 +1013,8 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("summary", summary_cmd))
     app.add_handler(CommandHandler("undo", undo_cmd))
     app.add_handler(CommandHandler("reset", reset_cmd))
+    app.add_handler(CommandHandler("setreport", set_daily_report))
+    app.add_handler(CommandHandler("stopreport", stop_daily_report))
 
     # ===== Owner 管理命令 =====
     app.add_handler(CommandHandler("adddays", add_days))

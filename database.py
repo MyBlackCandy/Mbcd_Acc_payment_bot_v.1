@@ -1,4 +1,39 @@
-def init_db():
+import os
+import psycopg2
+import logging
+
+
+# ================= DB CONNECTION =================
+def get_db_connection():
+    try:
+        database_url = os.getenv("DATABASE_URL")
+
+        if not database_url:
+            logging.error("❌ DATABASE_URL not found")
+            return None
+
+        # Fix Heroku style URL
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace(
+                "postgres://",
+                "postgresql://",
+                1
+            )
+
+        conn = psycopg2.connect(
+            database_url,
+            sslmode="require"
+        )
+
+        return conn
+
+    except Exception as e:
+        logging.error(f"❌ Database Connection Error: {e}")
+        return None
+
+
+# ================= INIT DATABASE =================
+    def init_db():
     conn = get_db_connection()
     if conn is None:
         logging.error("❌ Cannot initialize DB")

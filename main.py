@@ -142,7 +142,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ===== MASTER =====
     if str(user_id) == str(MASTER_ADMIN):
         await update.message.reply_text(
-            f"🆔 用户ID: `{user_id}`\n"
+            f"🆔 用户ID: {user_id}\n"
             f"👑 身份: MASTER\n"
             f"⏳ 状态: 永久有效"
         

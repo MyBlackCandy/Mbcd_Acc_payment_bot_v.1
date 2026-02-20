@@ -184,7 +184,7 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"🆔 用户ID: {user_id}\n" 
                 f"👑 身份: Owner\n" 
-                f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟" " 
+                f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟" 
             ) 
             return 
         else: 

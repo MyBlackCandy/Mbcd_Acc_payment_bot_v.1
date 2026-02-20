@@ -488,90 +488,176 @@ async def summary_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not role:
         return
 
-    chat_id = update.effective_chat.id
-    conn = get_db_connection()
-    if not conn:
-        await update.message.reply_text("❌ 数据库连接失败")
-        return
+    keyboard = [
+        [InlineKeyboardButton("📊 全部统计", callback_data="summary_all")],
+        [InlineKeyboardButton("📅 按月份查看", callback_data="summary_month_select")],
+        [InlineKeyboardButton("📆 按年份查看", callback_data="summary_year_select")]
+    ]
 
+    await update.message.reply_text(
+        "📊 请选择统计方式：",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ---------------- summary callblack ----------------
+async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = query.message.chat.id
+    action = query.data
+
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    # ================= 总体统计 =================
-    cursor.execute("""
-        SELECT 
-            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
-            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
-        FROM history
-        WHERE chat_id = %s
-    """, (chat_id,))
-    total_income, total_expense = cursor.fetchone()
-    total_net = total_income + total_expense
+    # ================= 全部统计 =================
+    if action == "summary_all":
 
-    # ================= 日统计 (最近30天) =================
-    cursor.execute("""
-        SELECT 
-            DATE(timestamp),
-            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
-            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
-        FROM history
-        WHERE chat_id = %s
-        GROUP BY DATE(timestamp)
-        ORDER BY DATE(timestamp) DESC
-        LIMIT 30
-    """, (chat_id,))
-    daily_rows = cursor.fetchall()
+        # 总体
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
+                COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
+            FROM history
+            WHERE chat_id = %s
+        """, (chat_id,))
+        total_income, total_expense = cursor.fetchone()
+        total_net = total_income + total_expense
 
-    # ================= 月统计 (最近12个月) =================
-    cursor.execute("""
-        SELECT 
-            TO_CHAR(timestamp, 'YYYY-MM'),
-            COALESCE(SUM(CASE WHEN amount > 0 THEN amount END),0),
-            COALESCE(SUM(CASE WHEN amount < 0 THEN amount END),0)
-        FROM history
-        WHERE chat_id = %s
-        GROUP BY TO_CHAR(timestamp, 'YYYY-MM')
-        ORDER BY TO_CHAR(timestamp, 'YYYY-MM') DESC
-        LIMIT 12
-    """, (chat_id,))
-    monthly_rows = cursor.fetchall()
+        # 按日
+        cursor.execute("""
+            SELECT DATE(timestamp),
+                   SUM(amount)
+            FROM history
+            WHERE chat_id = %s
+            GROUP BY DATE(timestamp)
+            ORDER BY DATE(timestamp) DESC
+        """, (chat_id,))
+        daily = cursor.fetchall()
 
-    cursor.close()
-    conn.close()
+        # 按月
+        cursor.execute("""
+            SELECT TO_CHAR(timestamp,'YYYY-MM'),
+                   SUM(amount)
+            FROM history
+            WHERE chat_id = %s
+            GROUP BY TO_CHAR(timestamp,'YYYY-MM')
+            ORDER BY TO_CHAR(timestamp,'YYYY-MM') DESC
+        """, (chat_id,))
+        monthly = cursor.fetchall()
 
-    if not daily_rows:
-        await update.message.reply_text("📭 暂无账务记录")
-        return
+        # 按年
+        cursor.execute("""
+            SELECT TO_CHAR(timestamp,'YYYY'),
+                   SUM(amount)
+            FROM history
+            WHERE chat_id = %s
+            GROUP BY TO_CHAR(timestamp,'YYYY')
+            ORDER BY TO_CHAR(timestamp,'YYYY') DESC
+        """, (chat_id,))
+        yearly = cursor.fetchall()
 
-    text = "📊 财务统计中心\n"
-    text += "━━━━━━━━━━━━━━━\n\n"
+        text = "📊 全部统计\n━━━━━━━━━━━━━━━\n\n"
+        text += f"总收入: {total_income:,}\n"
+        text += f"总支出: {total_expense:,}\n"
+        text += f"总净额: {total_net:,}\n\n"
 
-    # ===== 总体 =====
-    text += "📌 总体汇总\n"
-    text += f"总收入: {total_income:,}\n"
-    text += f"总支出: {total_expense:,}\n"
-    text += f"总净额: {total_net:,}\n\n"
+        text += "📅 按日统计\n"
+        for d, total in daily:
+            text += f"{d} | {total:,}\n"
 
-    # ===== 每日 =====
-    text += "📅 最近 30 天\n"
-    for day, income, expense in daily_rows:
-        net = income + expense
-        text += f"{day} | 收入 {income:,} | 支出 {expense:,} | 净额 {net:,}\n"
+        text += "\n📆 按月统计\n"
+        for m, total in monthly:
+            text += f"{m} | {total:,}\n"
 
-    text += "\n📆 最近 12 个月\n"
-    for month, income, expense in monthly_rows:
-        net = income + expense
-        text += f"{month} | 收入 {income:,} | 支出 {expense:,} | 净额 {net:,}\n"
+        text += "\n📈 按年统计\n"
+        for y, total in yearly:
+            text += f"{y} | {total:,}\n"
 
-    # ป้องกันเกิน Telegram limit
-    if len(text) > 3900:
-        parts = [text[i:i+3900] for i in range(0, len(text), 3900)]
-        for part in parts:
-            await update.message.reply_text(part)
-    else:
-        await update.message.reply_text(text)
-    
-# ---------------- list ----------------
+        await query.edit_message_text(text)
 
+    elif action == "summary_month_select":
+
+        cursor.execute("""
+            SELECT DISTINCT TO_CHAR(timestamp,'YYYY-MM')
+            FROM history
+            WHERE chat_id = %s
+            ORDER BY 1 DESC
+            LIMIT 12
+        """, (chat_id,))
+
+        months = cursor.fetchall()
+
+        keyboard = []
+        for m in months:
+            keyboard.append([
+                InlineKeyboardButton(
+                    m[0],
+                    callback_data=f"summary_month:{m[0]}"
+                )
+            ])
+
+        await query.edit_message_text(
+            "📅 请选择月份：",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+            elif action.startswith("summary_month:"):
+
+        month = action.split(":")[1]
+
+        cursor.execute("""
+            SELECT SUM(amount)
+            FROM history
+            WHERE chat_id=%s
+            AND TO_CHAR(timestamp,'YYYY-MM')=%s
+        """, (chat_id, month))
+
+        total = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            SELECT DATE(timestamp), SUM(amount)
+            FROM history
+            WHERE chat_id=%s
+            AND TO_CHAR(timestamp,'YYYY-MM')=%s
+            GROUP BY DATE(timestamp)
+            ORDER BY DATE(timestamp)
+        """, (chat_id, month))
+
+        daily = cursor.fetchall()
+
+        text = f"📅 {month} 月统计\n"
+        text += "━━━━━━━━━━━━━━━\n\n"
+        text += f"总计: {total:,}\n\n"
+
+        for d, t in daily:
+            text += f"{d} | {t:,}\n"
+
+        await query.edit_message_text(text)
+        elif action == "summary_year_select":
+
+        cursor.execute("""
+            SELECT DISTINCT TO_CHAR(timestamp,'YYYY')
+            FROM history
+            WHERE chat_id = %s
+            ORDER BY 1 DESC
+        """, (chat_id,))
+
+        years = cursor.fetchall()
+
+        keyboard = []
+        for y in years:
+            keyboard.append([
+                InlineKeyboardButton(
+                    y[0],
+                    callback_data=f"summary_year:{y[0]}"
+                )
+            ])
+
+        await query.edit_message_text(
+            "📆 请选择年份：",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 # ---------------- undo ----------------
 async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -795,6 +881,12 @@ if __name__ == '__main__':
         CallbackQueryHandler(
             reset_callback,
             pattern="^(confirm_reset|cancel_reset)"
+        )
+    )
+    app.add_handler(
+        CallbackQueryHandler(
+            summary_callback, 
+            pattern="^summary_"
         )
     )
 

@@ -173,56 +173,39 @@ async def check_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.close()
     conn.close()
 
-    # ===== Owner =====
+        # ===== Owner =====
     if user_row and user_row[0]:
-    remaining = user_row[0] - datetime.utcnow()
-
-    if remaining.total_seconds() > 0:
-        days = remaining.days
-        hours = remaining.seconds // 3600
-        minutes = (remaining.seconds % 3600) // 60
-
-        msg = (
-            f"🆔 用户ID: <code>{user_id}</code>\n"
-            f"👑 身份: Owner\n"
-            f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟"
-        )
-
-        await update.message.reply_text(msg, parse_mode="HTML")
-        return
-
-    else:
-        msg = (
-            f"🆔 用户ID: <code>{user_id}</code>\n"
-            f"❌ 使用权限已过期\n"
-            f"请联系管理员 @Mbcdcandy"
-        )
-
-        await update.message.reply_text(msg, parse_mode="HTML")
-        return
-
-
-    # ===== Assistant =====
-    if assistant_row:
-        msg = (
-            f"🆔 用户ID: <code>{user_id}</code>\n"
-            f"👥 身份: 此群操控者\n"
-            f"📌 仅限当前群组使用\n"
-            f"请联系管理员 @Mbcdcandy"
-        )
-
-        await update.message.reply_text(msg, parse_mode="HTML")
-        return
-
-
-    # ===== 无权限 =====
-    msg = (
-        f"🆔 用户ID: <code>{user_id}</code>\n"
-        f"❌ 当前群组无使用权限\n"
-        f"请联系管理员 @Mbcdcandy"
+        remaining = user_row[0] - datetime.utcnow() 
+        
+        if remaining.total_seconds() > 0: 
+            days = remaining.days 
+            hours = remaining.seconds // 3600 
+            minutes = (remaining.seconds % 3600) // 60 
+            await update.message.reply_text(
+                f"🆔 用户ID: {user_id}\n" 
+                f"👑 身份: Owner\n" 
+                f"⏳ 剩余时间: {days} 天 {hours} 小时 {minutes} 分钟" " 
+            ) 
+            return 
+        else: 
+            await update.message.reply_text(
+                f"🆔 用户ID: {user_id}\n" 
+                f"❌ 使用权限已过期,请联系管理员 @Mbcdcandy"
+            ) 
+            return 
+        # ===== Assistant ===== 
+    if assistant_row: 
+        await update.message.reply_text(
+            f"🆔 用户ID: {user_id}\n" 
+            f"👥 身份: 此群操控者\n" 
+            f"📌 仅限当前群组使用,请联系管理员 @Mbcdcandy"
+        ) 
+        return 
+        # ===== 无权限 ===== 
+    await update.message.reply_text(
+        f"🆔 用户ID: {user_id}\n" 
+        f"❌ 当前群组无使用权限,请联系管理员 @Mbcdcandy" 
     )
-
-    await update.message.reply_text(msg, parse_mode="HTML")
 
 # ---------------- ADD DAYS (MASTER ONLY) ----------------
 async def add_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -473,7 +456,7 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rows.reverse()
 
-    header = "📒 最近 100 条账目记录\n\n"
+    header = "📒 全部账目记录\n\n"
     footer = f"\n━━━━━━━━━━━━━━━\n💰 当前余额: {rows[-1][2]:,}"
 
     message = header
@@ -771,7 +754,7 @@ async def reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🗑️ 已清空所有记录\n\n💰 当前余额: 0"
         )
 
-# ---------------- MAIN ----------------
+
 # ---------------- GLOBAL ERROR HANDLER ----------------
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(

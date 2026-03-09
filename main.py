@@ -373,14 +373,20 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
         text_reply += "-------------------------------------------------------------------\n"
 
         for r in month_rows:
-            dt_str = r[3].strftime('%m-%d')
-            amt_str = f"{'+' if r[1] > 0 else ''}{r[1]:,}"
-            desc = r[0]
-            bal_after = f"{r[2]:,}"
+            # 1. จัดรูปแบบวันที่ให้เป็น "3月9日" (ตัดเลข 0 นำหน้าออก)
+            month_val = r[3].strftime('%m').lstrip('0')
+            day_val = r[3].strftime('%d').lstrip('0')
+            dt_str = f"{month_val}月{day_val}日"
             
-            # 格式: 日期 | 备注
-            #       金额 | (余额)
-            text_reply += f" {dt_str}   {desc}   {amt_str} \n"
+            # 2. จัดรูปแบบจำนวนเงิน
+            amt_str = f"{'+' if r[1] > 0 else ''}{r[1]:,}"
+            
+            # 3. ดึงคำอธิบายรายการ
+            desc = r[0]
+            
+            # 4. รวมข้อความเป็นบรรทัดเดียวตามรูปแบบที่ต้องการ
+            # ผลลัพธ์: 3月9日 备用资金 +10,000
+            text_reply += f"{dt_str}  {desc}  {amt_str}\n"
             
 
         # 月度小结

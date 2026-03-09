@@ -386,7 +386,7 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
             
             # 4. รวมข้อความเป็นบรรทัดเดียวตามรูปแบบที่ต้องการ
             # ผลลัพธ์: 3月9日 备用资金 +10,000
-            text_reply += f"{dt_str}  {desc}  {amt_str}\n"
+            text_reply += f"`{dt_str}  {desc}  {amt_str}`\n"
             
 
         # 月度小结
@@ -733,7 +733,7 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del_time_str = f"{m_del}月{d_del}日"
         del_amt_str = f"{'+' if last_amt > 0 else ''}{last_amt:,}"
         
-        undo_title = f"↩️ **已撤销以下记录：**\n🗑️ `{del_time_str} {last_desc} {del_amt_str}`\n"
+        undo_title = f"↩️ **已撤销以下记录：**\n🗑️删除 `{del_time_str} {last_desc} {del_amt_str}`\n"
         undo_title += "━━━━━━━━━━━━━━━━━━\n"
         undo_title += "📒 **更新后的汇总如下：**"
 

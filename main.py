@@ -341,56 +341,59 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 from collections import defaultdict
 
-async def send_monthly_formatted_messages(update: Update, rows, current_balance, title="📒 **รายงานสรุปแยกตามเดือน**"):
+async def send_monthly_formatted_messages(update: Update, rows, current_balance, title="📒 **全部账目汇总**"):
     """
-    แยกรายการตามเดือนและส่งข้อความแยกตามเดือนนั้นๆ
+    按月份分段发送账目记录 (ภาษาจีน)
     """
     if not rows:
-        await update.message.reply_text("📭 ไม่พบรายการบันทึก")
+        await update.message.reply_text("📭 暂无账目记录")
         return
 
-    # 1. จัดกลุ่มข้อมูลใน Dictionary: { '2024-01': [rows], '2024-02': [rows] }
+    # 1. 按月份分组数据: { '2024-01': [rows], '2024-02': [rows] }
     monthly_data = defaultdict(list)
     for r in rows:
-        month_key = r[3].strftime('%Y-%m') # ใช้ปีและเดือนเป็น Key
+        month_key = r[3].strftime('%Y-%m') 
         monthly_data[month_key].append(r)
 
-    # 2. ส่งหัวข้อหลัก
+    # 2. 发送主标题
     await update.message.reply_text(title, parse_mode='Markdown')
 
-    # 3. วนลูปส่งทีละเดือน (เรียงตามเดือนจากเก่าไปใหม่)
+    # 3. 按月份循环发送 (从旧到新)
     sorted_months = sorted(monthly_data.keys())
     
     for month_key in sorted_months:
         month_rows = monthly_data[month_key]
-        month_display = month_rows[0][3].strftime('%B %Y') # เช่น "January 2024"
+        # 转换月份显示格式，例如 "2024年 03月"
+        month_display = month_rows[0][3].strftime('%Y年 %m月')
         
         plus_sum = sum(r[1] for r in month_rows if r[1] > 0)
         minus_sum = sum(r[1] for r in month_rows if r[1] < 0)
         
-        text_reply = f"📅 **เดือน: {month_display}**\n"
+        text_reply = f"📅 **月份: {month_display}**\n"
         text_reply += "------------------------------------------\n"
 
         for r in month_rows:
-            dt_str = r[3].strftime('%d/%m %H:%M')
+            dt_str = r[3].strftime('%m-%d %H:%M')
             amt_str = f"{'+' if r[1] > 0 else ''}{r[1]:,}"
             desc = r[0]
             bal_after = f"{r[2]:,}"
             
+            # 格式: 日期 | 备注
+            #       金额 | (余额)
             text_reply += f"🔹 {dt_str} | {desc}\n"
-            text_reply += f"💰 {amt_str} | (剩余: {bal_after})\n"
+            text_reply += f"💰 {amt_str} | (余额: {bal_after})\n"
             text_reply += "------------------------------------------\n"
 
-        # สรุปยอดของเดือนนั้นๆ
-        text_reply += f"➕ รับเข้า: {plus_sum:,}\n"
-        text_reply += f"➖ จ่ายออก: {abs(minus_sum):,}\n"
-        text_reply += f"⚖️ ส่วนต่างเดือนนี้: {plus_sum + minus_sum:,}\n"
+        # 月度小结
+        text_reply += f"➕ 本月收入: {plus_sum:,}\n"
+        text_reply += f"➖ 本月支出: {abs(minus_sum):,}\n"
+        text_reply += f"⚖️ 月度收支差: {plus_sum + minus_sum:,}\n"
         
-        # ส่งข้อความของเดือนนั้นๆ
+        # 发送该月份账单
         await update.message.reply_text(text_reply, parse_mode='Markdown')
 
-    # 4. ส่งยอดคงเหลือสุทธิสุดท้าย
-    footer = f"━━━━━━━━━━━━━━━━━━\n💵 **总余额 (ยอดคงเหลือปัจจุบัน): {current_balance:,}**"
+    # 4. 发送最终总余额
+    footer = f"━━━━━━━━━━━━━━━━━━\n💵 **当前总余额: {current_balance:,}**"
     await update.message.reply_text(footer, parse_mode='Markdown')
 
 # ---------------- HANDLE MESSAGE ----------------
@@ -407,7 +410,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     sign, amount_str, description = match.groups()
     amount = int(amount_str)
-    description = description if description else "未备注"
+    description = description if description else "未备注项目"
     if sign == '-': amount = -amount
 
     chat_id = update.effective_chat.id
@@ -418,33 +421,32 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor = conn.cursor()
 
     try:
-        # หายอดคงเหลือล่าสุด
+        # 获取最后余额
         cursor.execute("SELECT balance_after FROM history WHERE chat_id = %s ORDER BY id DESC LIMIT 1", (chat_id,))
         last = cursor.fetchone()
         last_balance = last[0] if last else 0
         new_balance = last_balance + amount
 
-        # บันทึกรายการใหม่
+        # 插入新记录
         cursor.execute("""
             INSERT INTO history (chat_id, amount, description, balance_after, user_name)
             VALUES (%s, %s, %s, %s, %s)
         """, (chat_id, amount, description, new_balance, user_name))
         conn.commit()
 
-        # ดึงข้อมูลทั้งหมดเพื่อแสดงผลแยกตามเดือน
+        # 获取所有历史记录按顺序排列
         cursor.execute("""
             SELECT description, amount, balance_after, timestamp
             FROM history WHERE chat_id = %s ORDER BY id ASC
         """, (chat_id,))
         rows = cursor.fetchall()
 
-        # เรียกใช้ฟังก์ชันส่งแยกเดือน
-        await send_monthly_formatted_messages(update, rows, new_balance, title="📋 **บันทึกรายการและสรุปรายเดือน**")
+        # 调用月度格式化发送函数
+        await send_monthly_formatted_messages(update, rows, new_balance, title="📋 **账目已更新并生成月度汇总**")
 
     finally:
         cursor.close()
         conn.close()
-# ---------------- BALANCE ----------------
 
 
 # ---------------- summary ----------------
@@ -685,10 +687,14 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     conn = get_db_connection()
-    if not conn: return
+    if not conn: 
+        await update.message.reply_text("❌ 数据库连接失败")
+        return
+        
     cursor = conn.cursor()
 
     try:
+        # 查找最后一条记录
         cursor.execute("SELECT id FROM history WHERE chat_id = %s ORDER BY id DESC LIMIT 1", (chat_id,))
         last_row = cursor.fetchone()
 
@@ -696,19 +702,22 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📭 暂无记录可撤销")
             return
 
+        # 执行删除
         cursor.execute("DELETE FROM history WHERE id = %s", (last_row[0],))
         conn.commit()
 
+        # 获取删除后的所有记录
         cursor.execute("""
             SELECT description, amount, balance_after, timestamp
             FROM history WHERE chat_id = %s ORDER BY id ASC
         """, (chat_id,))
         rows = cursor.fetchall()
         
+        # 计算当前余额
         current_balance = rows[-1][2] if rows else 0
 
-        # ส่งแสดงผลแยกเดือน
-        undo_title = "↩️ **ยกเลิกรายการล่าสุดแล้ว - สรุปยอดปัจจุบัน**"
+        # 调用月度格式化发送函数
+        undo_title = "↩️ **已撤销最后一条记录，更新后的汇总如下：**"
         await send_monthly_formatted_messages(update, rows, current_balance, title=undo_title)
 
     finally:

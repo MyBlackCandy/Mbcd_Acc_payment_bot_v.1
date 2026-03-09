@@ -448,7 +448,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rows = cursor.fetchall()
 
         # 调用月度格式化发送函数
-        await send_monthly_formatted_messages(update, rows, new_balance, title="")
+        await send_monthly_formatted_messages(update, rows, new_balance, title="**账目已更新并生成月度汇总**")
 
     finally:
         cursor.close()

@@ -370,7 +370,7 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
         minus_sum = sum(r[1] for r in month_rows if r[1] < 0)
         
         text_reply = f"📅 **月份: {month_display}**\n"
-        text_reply += "------------------------------------------------------------------------------------\n"
+        text_reply += "-------------------------------------------------------------------\n"
 
         for r in month_rows:
             dt_str = r[3].strftime('%m-%d %H:%M')
@@ -381,7 +381,7 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
             # 格式: 日期 | 备注
             #       金额 | (余额)
             text_reply += f"🔹 {dt_str} | {desc} |💰 {amt_str} \n"
-            text_reply += "------------------------------------------------------------------------------------\n"
+            text_reply += "-------------------------------------------------------------------\n"
 
         # 月度小结
         text_reply += f"➕ 本月收款: {plus_sum:,}\n"
@@ -392,7 +392,7 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
         await update.message.reply_text(text_reply, parse_mode='Markdown')
 
     # 4. 发送最终总余额
-    footer = f"━━━━━━━━━━━━━━━━━━\n💵 **当前总余额: {current_balance:,}**"
+    footer = f"-------------------------------------------------------------------\n💵 **当前总余额: {current_balance:,}**"
     await update.message.reply_text(footer, parse_mode='Markdown')
 
 # ---------------- HANDLE MESSAGE ----------------

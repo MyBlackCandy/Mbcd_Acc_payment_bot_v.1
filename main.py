@@ -293,9 +293,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━\n"
         "📊 指令\n\n"
 
-        "💰 /balance\n"
-        "查看最近 100 条记录\n\n"
-
+        
         "📈 /summary\n"
         "查看统计报表（总汇总 / 最近30天 / 最近12个月）\n\n"
 
@@ -337,149 +335,116 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(msg)
+
+
+# ---------------- format_transaction_message ----------------
+
+from collections import defaultdict
+
+async def send_monthly_formatted_messages(update: Update, rows, current_balance, title="📒 **รายงานสรุปแยกตามเดือน**"):
+    """
+    แยกรายการตามเดือนและส่งข้อความแยกตามเดือนนั้นๆ
+    """
+    if not rows:
+        await update.message.reply_text("📭 ไม่พบรายการบันทึก")
+        return
+
+    # 1. จัดกลุ่มข้อมูลใน Dictionary: { '2024-01': [rows], '2024-02': [rows] }
+    monthly_data = defaultdict(list)
+    for r in rows:
+        month_key = r[3].strftime('%Y-%m') # ใช้ปีและเดือนเป็น Key
+        monthly_data[month_key].append(r)
+
+    # 2. ส่งหัวข้อหลัก
+    await update.message.reply_text(title, parse_mode='Markdown')
+
+    # 3. วนลูปส่งทีละเดือน (เรียงตามเดือนจากเก่าไปใหม่)
+    sorted_months = sorted(monthly_data.keys())
     
+    for month_key in sorted_months:
+        month_rows = monthly_data[month_key]
+        month_display = month_rows[0][3].strftime('%B %Y') # เช่น "January 2024"
+        
+        plus_sum = sum(r[1] for r in month_rows if r[1] > 0)
+        minus_sum = sum(r[1] for r in month_rows if r[1] < 0)
+        
+        text_reply = f"📅 **เดือน: {month_display}**\n"
+        text_reply += "------------------------------------------\n"
+
+        for r in month_rows:
+            dt_str = r[3].strftime('%d/%m %H:%M')
+            amt_str = f"{'+' if r[1] > 0 else ''}{r[1]:,}"
+            desc = r[0]
+            bal_after = f"{r[2]:,}"
+            
+            text_reply += f"🔹 {dt_str} | {desc}\n"
+            text_reply += f"💰 {amt_str} | (剩余: {bal_after})\n"
+            text_reply += "------------------------------------------\n"
+
+        # สรุปยอดของเดือนนั้นๆ
+        text_reply += f"➕ รับเข้า: {plus_sum:,}\n"
+        text_reply += f"➖ จ่ายออก: {abs(minus_sum):,}\n"
+        text_reply += f"⚖️ ส่วนต่างเดือนนี้: {plus_sum + minus_sum:,}\n"
+        
+        # ส่งข้อความของเดือนนั้นๆ
+        await update.message.reply_text(text_reply, parse_mode='Markdown')
+
+    # 4. ส่งยอดคงเหลือสุทธิสุดท้าย
+    footer = f"━━━━━━━━━━━━━━━━━━\n💵 **总余额 (ยอดคงเหลือปัจจุบัน): {current_balance:,}**"
+    await update.message.reply_text(footer, parse_mode='Markdown')
+
 # ---------------- HANDLE MESSAGE ----------------
 async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     if not update.message or not update.message.text:
         return
 
     role = await check_permission(update)
-    if not role:   # ไม่มีสิทธิ์
-        return
+    if not role: return
 
     text = update.message.text.strip()
     match = re.match(r'^([+-])(\d+)\s*(.*)$', text)
-    if not match:
-        return
+    if not match: return
 
-    sign = match.group(1)
-    amount = int(match.group(2))
-    description = match.group(3) if match.group(3) else "未备注"
-
-    if sign == '-':
-        amount = -amount
+    sign, amount_str, description = match.groups()
+    amount = int(amount_str)
+    description = description if description else "未备注"
+    if sign == '-': amount = -amount
 
     chat_id = update.effective_chat.id
     user_name = update.effective_user.first_name
 
     conn = get_db_connection()
-    if not conn:
-        return
-
+    if not conn: return
     cursor = conn.cursor()
 
-    # 取最后余额
-    cursor.execute("""
-        SELECT balance_after FROM history
-        WHERE chat_id = %s
-        ORDER BY id DESC LIMIT 1
-    """, (chat_id,))
-    last = cursor.fetchone()
+    try:
+        # หายอดคงเหลือล่าสุด
+        cursor.execute("SELECT balance_after FROM history WHERE chat_id = %s ORDER BY id DESC LIMIT 1", (chat_id,))
+        last = cursor.fetchone()
+        last_balance = last[0] if last else 0
+        new_balance = last_balance + amount
 
-    last_balance = last[0] if last else 0
-    new_balance = last_balance + amount
+        # บันทึกรายการใหม่
+        cursor.execute("""
+            INSERT INTO history (chat_id, amount, description, balance_after, user_name)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (chat_id, amount, description, new_balance, user_name))
+        conn.commit()
 
-    # 插入记录
-    cursor.execute("""
-        INSERT INTO history (chat_id, amount, description, balance_after, user_name)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (chat_id, amount, description, new_balance, user_name))
+        # ดึงข้อมูลทั้งหมดเพื่อแสดงผลแยกตามเดือน
+        cursor.execute("""
+            SELECT description, amount, balance_after, timestamp
+            FROM history WHERE chat_id = %s ORDER BY id ASC
+        """, (chat_id,))
+        rows = cursor.fetchall()
 
-    conn.commit()
+        # เรียกใช้ฟังก์ชันส่งแยกเดือน
+        await send_monthly_formatted_messages(update, rows, new_balance, title="📋 **บันทึกรายการและสรุปรายเดือน**")
 
-    # 取最近 6 条
-    cursor.execute("""
-        SELECT description, amount, balance_after, timestamp
-        FROM history
-        WHERE chat_id = %s
-        ORDER BY id DESC LIMIT 6
-    """, (chat_id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    rows.reverse()
-    display_rows = rows[-5:] if len(rows) > 5 else rows
-
-    text_reply = "📋 最近记录:\n\n"
-
-    if len(rows) > 5:
-        text_reply += "...\n"
-
-    for r in display_rows:
-        text_reply += (
-            f"{r[3].strftime('%m-%d %H:%M')} | "
-            f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
-            f"余额 {r[2]:,} | "
-            f"{r[0]}\n"
-        )
-
-    text_reply += "\n━━━━━━━━━━━━━━━\n"
-    text_reply += f"💰 当前余额: {new_balance:,}"
-
-    await update.message.reply_text(text_reply)
-
+    finally:
+        cursor.close()
+        conn.close()
 # ---------------- BALANCE ----------------
-async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    role = await check_permission(update)
-    if not role:
-        return
-
-    chat_id = update.effective_chat.id
-
-    conn = get_db_connection()
-    if not conn:
-        await update.message.reply_text("❌ 数据库连接失败")
-        return
-
-    cursor = conn.cursor()
-
-    # จำกัด 100 รายการล่าสุด ป้องกันยาวเกิน
-    cursor.execute("""
-        SELECT description, amount, balance_after, timestamp
-        FROM history
-        WHERE chat_id = %s
-        ORDER BY id DESC
-        LIMIT 100
-    """, (chat_id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    if not rows:
-        await update.message.reply_text("📭 暂无记录")
-        return
-
-    rows.reverse()
-
-    header = "📒 全部账目记录\n\n"
-    footer = f"\n━━━━━━━━━━━━━━━\n💰 当前余额: {rows[-1][2]:,}"
-
-    message = header
-
-    for r in rows:
-        line = (
-            f"{r[3].strftime('%m-%d %H:%M')} | "
-            f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
-            f"余额 {r[2]:,} | "
-            f"{r[0]}\n"
-            
-        )
-
-        # ถ้าใกล้ 4096 ตัวอักษร ให้ส่งก่อน
-        if len(message + line + footer) > 3900:
-            await update.message.reply_text(message)
-            message = ""
-
-        message += line
-
-    message += footer
-
-    await update.message.reply_text(message)
 
 
 # ---------------- summary ----------------
@@ -715,98 +680,40 @@ async def summary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 # ---------------- undo ----------------
 async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     role = await check_permission(update)
-    if not role:
-        return
+    if not role: return
 
     chat_id = update.effective_chat.id
-
     conn = get_db_connection()
-    if not conn:
-        await update.message.reply_text("❌ 数据库连接失败")
-        return
-
+    if not conn: return
     cursor = conn.cursor()
 
-    # ดึงแถวล่าสุด
-    cursor.execute("""
-        SELECT id, amount
-        FROM history
-        WHERE chat_id = %s
-        ORDER BY id DESC
-        LIMIT 1
-    """, (chat_id,))
+    try:
+        cursor.execute("SELECT id FROM history WHERE chat_id = %s ORDER BY id DESC LIMIT 1", (chat_id,))
+        last_row = cursor.fetchone()
 
-    last_row = cursor.fetchone()
+        if not last_row:
+            await update.message.reply_text("📭 暂无记录可撤销")
+            return
 
-    if not last_row:
+        cursor.execute("DELETE FROM history WHERE id = %s", (last_row[0],))
+        conn.commit()
+
+        cursor.execute("""
+            SELECT description, amount, balance_after, timestamp
+            FROM history WHERE chat_id = %s ORDER BY id ASC
+        """, (chat_id,))
+        rows = cursor.fetchall()
+        
+        current_balance = rows[-1][2] if rows else 0
+
+        # ส่งแสดงผลแยกเดือน
+        undo_title = "↩️ **ยกเลิกรายการล่าสุดแล้ว - สรุปยอดปัจจุบัน**"
+        await send_monthly_formatted_messages(update, rows, current_balance, title=undo_title)
+
+    finally:
         cursor.close()
         conn.close()
-        await update.message.reply_text("📭 暂无记录可撤销")
-        return
-
-    last_id, last_amount = last_row
-
-    # ลบรายการล่าสุด
-    cursor.execute("""
-        DELETE FROM history
-        WHERE id = %s
-    """, (last_id,))
-
-    conn.commit()
-
-    # ดึงยอดล่าสุดใหม่
-    cursor.execute("""
-        SELECT balance_after
-        FROM history
-        WHERE chat_id = %s
-        ORDER BY id DESC
-        LIMIT 1
-    """, (chat_id,))
-
-    balance_row = cursor.fetchone()
-
-    current_balance = balance_row[0] if balance_row else 0
-
-    # ดึง 5 รายการล่าสุดมาแสดง
-    cursor.execute("""
-        SELECT description, amount, balance_after, timestamp
-        FROM history
-        WHERE chat_id = %s
-        ORDER BY id DESC
-        LIMIT 5
-    """, (chat_id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    rows.reverse()
-
-    text_reply = "↩️ 已撤销最后一条记录\n"
-    text_reply += "━━━━━━━━━━━━━━━\n\n"
-
-    if not rows:
-        text_reply += "📭 当前暂无记录\n"
-        text_reply += "\n💰 当前余额: 0"
-        await update.message.reply_text(text_reply)
-        return
-
-    text_reply += "📋 当前记录\n\n"
-
-    for r in rows:
-        text_reply += (
-            f"{r[3].strftime('%m-%d %H:%M')} | "
-            f"{'+' if r[1] > 0 else ''}{r[1]:,} | "
-            f"余额 {r[2]:,} | "
-            f"{r[0]}\n"
-        )
-
-    text_reply += "\n━━━━━━━━━━━━━━━\n"
-    text_reply += f"💰 当前余额: {current_balance:,}"
-
-    await update.message.reply_text(text_reply)
 
 
 

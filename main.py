@@ -386,7 +386,7 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
             
             # 4. รวมข้อความเป็นบรรทัดเดียวตามรูปแบบที่ต้องการ
             # ผลลัพธ์: 3月9日 备用资金 +10,000
-            text_reply += f"`{dt_str}  {desc}  {amt_str}`\n"
+            text_reply += f"{dt_str} {desc} {amt_str}\n"
             
 
         # 月度小结

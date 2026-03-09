@@ -373,17 +373,18 @@ async def send_monthly_formatted_messages(update: Update, rows, current_balance,
         text_reply += "-------------------------------------------------------------------\n"
 
         for r in month_rows:
-            dt_str = r[3].strftime('%m-%d %H:%M')
+            dt_str = r[3].strftime('%m-%d')
             amt_str = f"{'+' if r[1] > 0 else ''}{r[1]:,}"
             desc = r[0]
             bal_after = f"{r[2]:,}"
             
             # 格式: 日期 | 备注
             #       金额 | (余额)
-            text_reply += f"🔹 {dt_str} | {desc} |💰 {amt_str} \n"
-            text_reply += "-------------------------------------------------------------------\n"
+            text_reply += f" {dt_str}   {desc}   {amt_str} \n"
+            
 
         # 月度小结
+        text_reply += "-------------------------------------------------------------------\n"
         text_reply += f"➕ 本月收款: {plus_sum:,}\n"
         text_reply += f"➖ 本月支付: {abs(minus_sum):,}\n"
         text_reply += f"💰 本月余额: {plus_sum + minus_sum:,}\n"

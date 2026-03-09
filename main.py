@@ -917,7 +917,7 @@ if __name__ == '__main__':
     # ===== 基础命令 =====
     app.add_handler(CommandHandler(["start", "help"], help_cmd))
     app.add_handler(CommandHandler("check", check_status))
-    app.add_handler(CommandHandler("balance", balance_cmd))
+    
     app.add_handler(CommandHandler("summary", summary_cmd))
     app.add_handler(CommandHandler("undo", undo_cmd))
     app.add_handler(CommandHandler("reset", reset_cmd))
